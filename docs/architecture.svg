@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="1100" height="560" fill="#ffffff"/>
+  <text x="550" y="60" text-anchor="middle" font-size="24" fill="#222">High-level architecture of the system</text>
+
+  <!-- user -->
+  <g stroke="#1a86d0" stroke-width="5" fill="none" stroke-linecap="round">
+    <line x1="140" y1="260" x2="140" y2="390"/>
+    <line x1="95" y1="320" x2="185" y2="320"/>
+    <line x1="140" y1="390" x2="105" y2="455"/>
+    <line x1="140" y1="390" x2="175" y2="455"/>
+  </g>
+  <circle cx="140" cy="232" r="32" fill="#1a86d0"/>
+  <text x="140" y="500" text-anchor="middle" font-size="17" fill="#222">User</text>
+
+  <!-- system boundary -->
+  <rect x="375" y="140" width="690" height="330" fill="none" stroke="#aab4b8" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="390" y="160" font-size="14" fill="#7a8a90">System boundary</text>
+
+  <!-- UI -->
+  <rect x="420" y="215" width="200" height="190" fill="#fff3e0" stroke="#f08a00" stroke-width="3"/>
+  <text x="520" y="295" text-anchor="middle" font-size="19" fill="#e07800">Interface part</text>
+  <text x="520" y="322" text-anchor="middle" font-size="19" fill="#e07800">(UI)</text>
+
+  <!-- Executive -->
+  <rect x="830" y="215" width="200" height="190" fill="#e8f5e9" stroke="#2e8b2e" stroke-width="3"/>
+  <text x="930" y="295" text-anchor="middle" font-size="19" fill="#2e7d32">Executive part</text>
+  <text x="930" y="322" text-anchor="middle" font-size="19" fill="#2e7d32">(Executive)</text>
+
+  <!-- user <-> UI -->
+  <line x1="200" y1="290" x2="410" y2="290" stroke="#555" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="300" y="275" text-anchor="middle" font-size="15" fill="#222">Enters a series of tasks</text>
+  <line x1="410" y1="345" x2="200" y2="345" stroke="#555" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="300" y="372" text-anchor="middle" font-size="15" fill="#222">Receives the result</text>
+  <text x="300" y="391" text-anchor="middle" font-size="15" fill="#222">of each task</text>
+
+  <!-- UI <-> Executive -->
+  <line x1="630" y1="310" x2="820" y2="310" stroke="#555" stroke-width="2.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="725" y="295" text-anchor="middle" font-size="15" fill="#222">Sends parameters</text>
+  <text x="725" y="335" text-anchor="middle" font-size="15" fill="#222">Returns a set of results</text>
+</svg>
