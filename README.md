@@ -18,13 +18,15 @@ Built as an independent assignment for an Operating Systems course. The main poi
 
 ```
 Executive → UI   {"handlers": {name: description}}        once, on start
-UI → Executive   {"value": address, "handlers": [...]}    task parameters
-Executive → UI   {"value": address, "results": [...]}     set of results
+UI → Executive   {"value": address, "handlers": [...],
+                  "trace": bool}                          task parameters
+Executive → UI   {"value": address, "results": [...],
+                  "trace": [...] | None}                  set of results
 UI → Executive   None                                     shutdown
 ```
 
 **A task** is a value (a site address) plus a list of handlers. If no handlers are given, all of them run.
-**Consolidation**: average by default (`avg`), or `min` to score a site by its weakest check.
+**Consolidation**: average by default (`avg`), `min` to score a site by its weakest check, or `median` so that a single bad check does not dominate.
 **Verdict**: ≥80 is `OK`, 50–79 is `WARN`, <50 is `FAIL`.
 
 ## Usage
@@ -40,8 +42,32 @@ python -m healthcheck
 
 # consolidate by minimum / run handlers sequentially to compare timing
 python -m healthcheck -c min "github.com"
-python -m healthcheck --sequential "github.com" "wikipedia.org"
+python -m healthcheck -s "github.com" "wikipedia.org"
+
+# show a timeline of which process/thread did what
+python -m healthcheck -t "github.com"
 ```
+
+### Options
+
+```
+usage: python -m healthcheck [-h] [-c FUNC] [-s] [-t] [TASK ...]
+
+positional arguments:
+  TASK                  a task in quotes, e.g. "github.com dns http"; if none
+                        are given, the system prompts for them
+
+options:
+  -h, --help            show this help message and exit
+  -c, --consolidate FUNC
+                        how to combine handler scores: avg, min, median
+                        (default: avg)
+  -s, --sequential      run handlers one by one instead of in parallel
+  -t, --trace           show a timeline of which process/thread did what for
+                        each task
+```
+
+`python -m healthcheck -h` also lists the task format, the handlers, and examples.
 
 Example output:
 
@@ -63,6 +89,34 @@ dns             2       0       1 ms
 http            2       0       4 ms
 ...
 ```
+
+## Tracing (`-t`)
+
+The trace shows events from both processes on one timeline, one column per process or thread, in the spirit of OSTEP's `x86.py -c`:
+
+```
+      ms  ui                executive         worker_0          worker_1          worker_2
+    ----------------------------------------------------------------------------------------
+     0.0  send task
+     0.4                    recv task
+     0.6                                      dns start
+     1.0                                                        tcp start
+     1.2                                                                          http start
+     4.1                                      dns done (100)
+     4.1                                      ssl start
+     4.1                                      ssl done (0)
+     4.4                                                        tcp done (100)
+    19.4                                                                          http done (100)
+    19.5                    send results
+    19.6  recv results
+```
+
+Things to notice:
+- the UI blocks between `send task` and `recv results`, while the executive works;
+- in parallel mode the checks overlap in time, and `worker_0` picks up `ssl` as soon as it finishes `dns`: the thread pool reuses threads;
+- with `-s` all checks run one after another in the `executive` column.
+
+Context switches and interrupts themselves are handled by the OS and are not visible from Python; the trace shows their effect, the interleaving of work between threads. Timestamps come from `time.monotonic()`, which is system-wide, so events from both processes share one clock.
 
 ## Tests
 
