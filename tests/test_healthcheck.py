@@ -62,6 +62,8 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(consolidate([100, 50, 0], "avg"), 50)
         self.assertEqual(consolidate([100, 50, 0], "min"), 0)
         self.assertIsNone(consolidate([], "avg"))
+        self.assertEqual(consolidate([100, 90, 0], "median"), 90)
+        self.assertEqual(consolidate([100, 0], "median"), 50)
 
     def test_verdict(self):
         self.assertEqual([verdict(90), verdict(60), verdict(10)], ["OK", "WARN", "FAIL"])
@@ -104,6 +106,23 @@ class TestProtocol(LocalServer):
         self.assertEqual([r["handler"] for r in reply["results"]], ["dns", "tcp", "http"])
         self.assertTrue(all(r["ok"] for r in reply["results"]))
         self.assertEqual(p.exitcode, 0)
+
+    def test_trace_is_returned_only_when_requested(self):
+        ctx = mp.get_context("spawn")
+        ui, ex = ctx.Pipe()
+        p = ctx.Process(target=executive_loop, args=(ex,))
+        p.start()
+        ui.recv()
+        ui.send({"value": self.addr, "handlers": ["dns", "http"]})
+        self.assertIsNone(ui.recv()["trace"])
+        ui.send({"value": self.addr, "handlers": ["dns", "http"], "trace": True})
+        events = [text for _, _, text in ui.recv()["trace"]]
+        ui.send(None)
+        p.join(5)
+        self.assertEqual(events[0], "recv task")
+        self.assertEqual(events[-1], "send results")
+        self.assertIn("dns start", events)
+        self.assertIn("http done (100)", events)
 
 
 if __name__ == "__main__":

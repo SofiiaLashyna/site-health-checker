@@ -5,15 +5,17 @@ to the executive part, consolidates its results into a site health score,
 and prints summary statistics before exit.
 """
 import multiprocessing as mp
+import statistics
 import time
 
-from .executive import executive_loop
+from .executive import executive_loop, record
 from .handlers import parse_target
 
 # Consolidation functions: handler scores -> a single task score
 CONSOLIDATORS = {
     "avg": lambda scores: round(sum(scores) / len(scores)),  # average
     "min": min,                                              # weakest link
+    "median": lambda scores: round(statistics.median(scores)),  # robust to one outlier
 }
 
 
@@ -86,6 +88,20 @@ def print_result(n, value, results, score, elapsed_ms):
           f"({verdict(score)}), {elapsed_ms:.0f} ms\n")
 
 
+def print_trace(events, col: int = 18):
+    """Print events as a timeline: one column per process/thread, like OSTEP's x86.py -c."""
+    workers = sorted({who for _, who, _ in events} - {"ui", "executive"})
+    columns = ["ui", "executive"] + workers
+    t0 = events[0][0]
+    header = f"{'ms':>8}  " + "".join(f"{c:<{col}}" for c in columns)
+    print("    " + header.rstrip())
+    print("    " + "-" * len(header))
+    for ts, who, text in events:
+        cells = "".join(f"{(text if c == who else ''):<{col}}" for c in columns)
+        print(f"    {(ts - t0) * 1000:>8.1f}  {cells.rstrip()}")
+    print()
+
+
 def task_source(tasks):
     """Tasks from arguments, or, if there are none, prompted from the user."""
     if tasks:
@@ -102,7 +118,7 @@ def task_source(tasks):
         yield line
 
 
-def run(tasks=None, how: str = "avg", parallel: bool = True) -> Stats:
+def run(tasks=None, how: str = "avg", parallel: bool = True, trace: bool = False) -> Stats:
     ctx = mp.get_context("spawn")  # same behaviour on Linux, macOS and Windows
     ui_conn, ex_conn = ctx.Pipe()
     executive = ctx.Process(target=executive_loop, args=(ex_conn, parallel), daemon=True)
@@ -112,7 +128,8 @@ def run(tasks=None, how: str = "avg", parallel: bool = True) -> Stats:
     print("Available handlers:")
     for name, desc in available.items():
         print(f"  {name:<5} - {desc}")
-    print(f"Consolidation: {how}; mode: {'parallel' if parallel else 'sequential'}\n")
+    print(f"Consolidation: {how}; mode: {'parallel' if parallel else 'sequential'}"
+          f"{'; trace: on' if trace else ''}\n")
 
     stats = Stats()
     try:
@@ -124,15 +141,20 @@ def run(tasks=None, how: str = "avg", parallel: bool = True) -> Stats:
                 stats.bad_input += 1
                 continue
 
+            events = [] if trace else None
             t0 = time.perf_counter()
-            ui_conn.send({"value": value, "handlers": handlers})  # parameters ->
-            reply = ui_conn.recv()                                 # <- results
+            record(events, "send task", who="ui")
+            ui_conn.send({"value": value, "handlers": handlers, "trace": trace})  # parameters ->
+            reply = ui_conn.recv()                                                 # <- results
+            record(events, "recv results", who="ui")
             elapsed = (time.perf_counter() - t0) * 1000
 
             scores = [r["score"] for r in reply["results"] if r["score"] is not None]
             score = consolidate(scores, how)
             stats.add(reply["results"], score)
             print_result(stats.tasks, value, reply["results"], score, elapsed)
+            if trace:
+                print_trace(sorted(events + reply["trace"]))
     finally:
         ui_conn.send(None)
         executive.join(timeout=10)
