@@ -117,11 +117,83 @@ def check_ssl(value: str):
     return score, f"certificate valid for {days} more day(s)"
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Makes urllib report a 3xx response instead of silently following it."""
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def check_redirect(value: str):
+    """Redirect: does plain http:// send visitors to https://"""
+    t = parse_target(value)
+    parts = urlsplit(t.url)
+    path = parts.path + ("?" + parts.query if parts.query else "")
+    # for an https site, check what its plain-HTTP twin on port 80 does
+    url = t.url if t.scheme == "http" else f"http://{t.host}{path}"
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(url, timeout=TIMEOUT) as resp:
+            return 20, f"serves plain HTTP ({resp.status}) without redirect"
+    except urllib.error.HTTPError as e:
+        location = e.headers.get("Location", "")
+        if 300 <= e.code < 400:
+            if location.startswith("https://"):
+                return 100, f"{e.code} -> {location}"
+            return 40, f"{e.code} -> {location or '?'} (not HTTPS)"
+        return 30, f"plain HTTP answers with {e.code}"
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, ConnectionRefusedError):
+            return 100, "plain HTTP is not served at all"
+        raise
+
+
+SECURITY_HEADERS = [
+    "Strict-Transport-Security",
+    "Content-Security-Policy",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+]
+
+
+def check_headers(value: str):
+    """Headers: how many common security headers the site sends"""
+    t = parse_target(value)
+    req = urllib.request.Request(t.url, headers={"User-Agent": "site-health-checker/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            headers = resp.headers
+    except urllib.error.HTTPError as e:  # error pages still carry headers
+        headers = e.headers
+    missing = [h for h in SECURITY_HEADERS if h not in headers]
+    found = len(SECURITY_HEADERS) - len(missing)
+    score = round(100 * found / len(SECURITY_HEADERS))
+    detail = f"{found}/{len(SECURITY_HEADERS)} security headers"
+    if missing:
+        detail += ", missing: " + ", ".join(missing)
+    return score, detail
+
+
+def check_ipv6(value: str):
+    """IPv6: does the domain have an IPv6 (AAAA) address"""
+    t = parse_target(value)
+    try:
+        infos = socket.getaddrinfo(t.host, t.port, socket.AF_INET6, socket.SOCK_STREAM)
+        return 100, f"IPv6 address {infos[0][4][0]}"
+    except socket.gaierror:
+        # no AAAA record; make sure the name resolves at all (otherwise it's a real failure)
+        socket.getaddrinfo(t.host, t.port, socket.AF_INET, socket.SOCK_STREAM)
+        return 50, "IPv4 only, no IPv6 address"
+
+
 HANDLERS = {
     "dns": check_dns,
     "tcp": check_tcp,
     "http": check_http,
     "ssl": check_ssl,
+    "redirect": check_redirect,
+    "headers": check_headers,
+    "ipv6": check_ipv6,
 }
 
 

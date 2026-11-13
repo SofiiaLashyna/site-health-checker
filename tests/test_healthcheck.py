@@ -13,8 +13,13 @@ from healthcheck.ui import consolidate, parse_task, verdict
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        code = 500 if self.path == "/broken" else 200
-        self.send_response(code)
+        if self.path == "/redir":
+            self.send_response(301)
+            self.send_header("Location", "https://example.com/")
+        else:
+            self.send_response(500 if self.path == "/broken" else 200)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
         self.wfile.write(b"hello")
 
@@ -86,6 +91,24 @@ class TestHandlers(LocalServer):
         r = run_handler("tcp", "http://127.0.0.1:1")
         self.assertFalse(r["ok"])
         self.assertEqual(r["score"], 0)
+
+    def test_redirect_to_https(self):
+        r = run_handler("redirect", self.addr + "/redir")
+        self.assertEqual(r["score"], 100)
+        self.assertIn("https://example.com/", r["detail"])
+
+    def test_plain_http_without_redirect(self):
+        self.assertEqual(run_handler("redirect", self.addr)["score"], 20)
+
+    def test_security_headers_counted(self):
+        r = run_handler("headers", self.addr)
+        self.assertEqual(r["score"], 40)  # 2 of 5 headers
+        self.assertIn("missing: Strict-Transport-Security", r["detail"])
+
+    def test_ipv4_only_address(self):
+        r = run_handler("ipv6", self.addr)  # 127.0.0.1 has no IPv6 form
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["score"], 50)
 
     def test_unknown_handler(self):
         r = run_handler("magic", self.addr)

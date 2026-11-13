@@ -83,21 +83,23 @@ def print_result(n, value, results, score, elapsed_ms):
     for r in results:
         sc = "  -" if r["score"] is None else f"{r['score']:>3}"
         mark = "" if r["ok"] else "  ✗"
-        print(f"    {r['handler']:<5} {sc}  {r['detail']}{mark}")
+        print(f"    {r['handler']:<8} {sc}  {r['detail']}{mark}")
     print(f"    => health: {score if score is not None else '-'}/100 "
           f"({verdict(score)}), {elapsed_ms:.0f} ms\n")
 
 
-def print_trace(events, col: int = 18):
+def print_trace(events):
     """Print events as a timeline: one column per process/thread, like OSTEP's x86.py -c."""
     workers = sorted({who for _, who, _ in events} - {"ui", "executive"})
     columns = ["ui", "executive"] + workers
+    width = {c: max([len(c)] + [len(text) for _, who, text in events if who == c]) + 2
+             for c in columns}  # each column is as wide as its longest entry
     t0 = events[0][0]
-    header = f"{'ms':>8}  " + "".join(f"{c:<{col}}" for c in columns)
+    header = f"{'ms':>8}  " + "".join(f"{c:<{width[c]}}" for c in columns)
     print("    " + header.rstrip())
-    print("    " + "-" * len(header))
+    print("    " + "-" * len(header.rstrip()))
     for ts, who, text in events:
-        cells = "".join(f"{(text if c == who else ''):<{col}}" for c in columns)
+        cells = "".join(f"{(text if c == who else ''):<{width[c]}}" for c in columns)
         print(f"    {(ts - t0) * 1000:>8.1f}  {cells.rstrip()}")
     print()
 
@@ -127,7 +129,7 @@ def run(tasks=None, how: str = "avg", parallel: bool = True, trace: bool = False
     available = ui_conn.recv()["handlers"]
     print("Available handlers:")
     for name, desc in available.items():
-        print(f"  {name:<5} - {desc}")
+        print(f"  {name:<8} - {desc}")
     print(f"Consolidation: {how}; mode: {'parallel' if parallel else 'sequential'}"
           f"{'; trace: on' if trace else ''}\n")
 
