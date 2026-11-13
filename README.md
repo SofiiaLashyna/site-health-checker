@@ -130,7 +130,7 @@ Things to notice:
 - in parallel mode the checks overlap in time, and `worker_0` picks up `ssl` as soon as it finishes `dns`: the thread pool reuses threads;
 - with `-s` all checks run one after another in the `executive` column.
 
-Context switches and interrupts themselves are handled by the OS and are not visible from Python; the trace shows their effect, the interleaving of work between threads. Timestamps come from `time.monotonic()`, which is system-wide, so events from both processes share one clock.
+Context switches and interrupts themselves are handled by the OS and are not visible from Python; the trace shows their effect, the interleaving of work between threads. Timestamps come from `time.perf_counter()`, a system-wide high-resolution clock, so events from both processes share one timeline.
 
 ## Tests
 

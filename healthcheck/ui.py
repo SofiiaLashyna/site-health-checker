@@ -156,7 +156,8 @@ def run(tasks=None, how: str = "avg", parallel: bool = True, trace: bool = False
             stats.add(reply["results"], score)
             print_result(stats.tasks, value, reply["results"], score, elapsed)
             if trace:
-                print_trace(sorted(events + reply["trace"]))
+                timeline = [events[0]] + reply["trace"] + events[1:]
+                print_trace(sorted(timeline, key=lambda e: e[0]))
     finally:
         ui_conn.send(None)
         executive.join(timeout=10)

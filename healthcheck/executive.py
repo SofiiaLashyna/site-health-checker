@@ -16,7 +16,7 @@ from .handlers import HANDLERS, describe
 
 
 def record(trace, text: str, who: str = None) -> None:
-    """Append an event to the trace (if tracing is on). time.monotonic() is
+    """Append an event to the trace (if tracing is on). time.perf_counter() is
     system-wide, so timestamps from the UI and executive processes are comparable."""
     if trace is None:
         return
@@ -24,7 +24,7 @@ def record(trace, text: str, who: str = None) -> None:
         who = threading.current_thread().name
         if who == "MainThread":
             who = "executive"
-    trace.append((time.monotonic(), who, text))
+    trace.append((time.perf_counter(), who, text))
 
 
 def run_handler(name: str, value: str, trace=None) -> dict:
