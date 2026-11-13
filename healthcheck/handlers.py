@@ -142,7 +142,7 @@ def check_redirect(value: str):
             return 40, f"{e.code} -> {location or '?'} (not HTTPS)"
         return 30, f"plain HTTP answers with {e.code}"
     except urllib.error.URLError as e:
-        if isinstance(e.reason, ConnectionRefusedError):
+        if t.scheme == "https" and isinstance(e.reason, ConnectionRefusedError):
             return 100, "plain HTTP is not served at all"
         raise
 

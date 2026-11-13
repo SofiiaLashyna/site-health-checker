@@ -110,6 +110,11 @@ class TestHandlers(LocalServer):
         self.assertTrue(r["ok"])
         self.assertEqual(r["score"], 50)
 
+    def test_redirect_on_down_http_site_is_failure(self):
+        r = run_handler("redirect", "http://127.0.0.1:1")
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["score"], 0)
+
     def test_unknown_handler(self):
         r = run_handler("magic", self.addr)
         self.assertIsNone(r["score"])
