@@ -12,7 +12,7 @@ Built as an independent assignment for an Operating Systems course. The main poi
 |---|---|---|
 | Interface (UI) | `healthcheck/ui.py` | accepts a series of tasks, sends parameters, consolidates results, keeps statistics |
 | Executive | `healthcheck/executive.py` | separate process; runs handlers in parallel (thread pool) and returns a set of results |
-| Handler registry | `healthcheck/handlers.py` | `dns`, `tcp`, `http`, `ssl`; each returns a 0–100 score and a description |
+| Handler registry | `healthcheck/handlers.py` | seven checks (see below); each returns a 0–100 score and a description |
 
 **Message protocol** (`multiprocessing.Pipe`):
 
@@ -24,6 +24,20 @@ Executive → UI   {"value": address, "results": [...],
                   "trace": [...] | None}                  set of results
 UI → Executive   None                                     shutdown
 ```
+
+### Handlers
+
+| Handler | What it checks | Scoring |
+|---|---|---|
+| `dns` | the domain resolves | 100 if under 50 ms, down to 20 at 1 s |
+| `tcp` | the port accepts connections | 100 if under 100 ms, down to 20 at 1.5 s |
+| `http` | response status and load time | 2xx/3xx scored by speed; 4xx = 40; 5xx = 10 |
+| `ssl` | certificate is valid and not expiring | >30 days = 100; 8–30 = 60; 0–7 = 20; expired or no HTTPS = 0 |
+| `redirect` | plain `http://` redirects to `https://` | redirect to HTTPS or no plain HTTP at all = 100; redirect elsewhere = 40; plain HTTP error = 30; plain HTTP served = 20 |
+| `headers` | security headers: HSTS, CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` | 20 points per header found |
+| `ipv6` | the domain has an IPv6 (AAAA) address | IPv6 = 100; IPv4 only = 50 |
+
+A check that cannot be completed (timeout, refused connection, invalid certificate) scores 0.
 
 **A task** is a value (a site address) plus a list of handlers. If no handlers are given, all of them run.
 **Consolidation**: average by default (`avg`), `min` to score a site by its weakest check, or `median` so that a single bad check does not dominate.
